@@ -14,6 +14,12 @@ Releases are cut from `main` by pushing a tag. Nothing is published until a pers
 
 `go install github.com/SandSoftwareSolutions/assay@vX.Y.Z` works as soon as the tag exists.
 
+## apt repository
+
+Publishing a release is enough: the repository at https://github.com/SandSoftwareSolutions/apt rebuilds
+every six hours and picks up the `.deb` files of the newest releases (run its *Update repository*
+workflow to update it right away). Users then get the new version with `sudo apt upgrade`.
+
 ## Verifying a download
 
 ```console

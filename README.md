@@ -43,6 +43,19 @@ what a script really touched.
 
 ## Install
 
+**Debian, Ubuntu and derivatives (apt):**
+
+```console
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://sandsoftwaresolutions.github.io/apt/key.asc | sudo tee /etc/apt/keyrings/sandsoftwaresolutions.asc >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/sandsoftwaresolutions.asc] https://sandsoftwaresolutions.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/sandsoftwaresolutions.list
+sudo apt update
+sudo apt install assay
+```
+
+Updates then arrive with `sudo apt upgrade`. The repository is signed; see
+[SandSoftwareSolutions/apt](https://github.com/SandSoftwareSolutions/apt).
+
 ```console
 go install github.com/SandSoftwareSolutions/assay@latest
 ```
@@ -53,7 +66,7 @@ Or one of these:
   `curl -fsSL https://raw.githubusercontent.com/SandSoftwareSolutions/assay/main/install.sh | sh`
 - **Release archive** for Linux, macOS and Windows (amd64 and arm64) from the releases page. Check it
   with `SHA256SUMS`, and with `gh attestation verify` for the build provenance.
-- **Debian/Ubuntu:** the `.deb` from the releases page.
+- **A single `.deb`** from the releases page, if you prefer not to add the apt repository.
 - **From source:** `make build` (Go 1.22 or newer).
 
 Check it works with `assay version`.
