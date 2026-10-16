@@ -70,11 +70,11 @@ runs:
         mkdir -p "$dir"
         curl -fsSL -o "$dir/$archive" "$base/$archive"
         curl -fsSL -o "$dir/SHA256SUMS" "$base/SHA256SUMS"
-        expected="$(awk -v f="$archive" '$2 == f {print $1}' "$dir/SHA256SUMS")"
+        expected="$(awk -v f="$archive" '$2 == f {print $1}' "$dir/SHA256SUMS" | tr -d '\r')"
         [ -n "$expected" ] || { echo "no checksum listed for $archive" >&2; exit 1; }
-        if command -v sha256sum >/dev/null 2>&1; then actual="$(sha256sum "$dir/$archive" | awk '{print $1}')"
+        if command -v sha256sum >/dev/null 2>&1; then actual="$(sha256sum "$dir/$archive" | awk '{print $1}' | tr -d '\r\\')"
         else actual="$(shasum -a 256 "$dir/$archive" | awk '{print $1}')"; fi
-        if [ "$expected" != "$actual" ]; then echo "checksum mismatch for $archive; refusing to use it" >&2; exit 1; fi
+        if [ "$expected" != "$actual" ]; then echo "checksum mismatch for $archive (expected $expected, got $actual); refusing to use it" >&2; exit 1; fi
         if [ "$ext" = zip ]; then unzip -q -o "$dir/$archive" -d "$dir"; else tar -xzf "$dir/$archive" -C "$dir"; fi
         bin="$dir/assay_${version}_${os}_${arch}"
         if command -v cygpath >/dev/null 2>&1; then bin="$(cygpath -w "$bin")"; fi
