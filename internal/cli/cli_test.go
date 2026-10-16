@@ -1,0 +1,221 @@
+package cli
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+type run struct {
+	code        int
+	out, errOut string
+}
+
+func hallmark(t *testing.T, args ...string) run {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	off := false
+	app := &App{Out: &out, Err: &errOut, Color: &off}
+	code := app.Run(context.Background(), args)
+	return run{code: code, out: out.String(), errOut: errOut.String()}
+}
+
+func write(t *testing.T, root, rel, content string) {
+	t.Helper()
+	p := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func folder(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	write(t, dir, "a.txt", "alpha")
+	write(t, dir, "sub/b.txt", "bravo")
+	return dir
+}
+
+func TestSealCheckExitCodes(t *testing.T) {
+	dir := folder(t)
+	if r := hallmark(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "hallmark seal") {
+		t.Fatalf("check without manifest: %+v", r)
+	}
+	if r := hallmark(t, "seal", dir); r.code != ExitOK || !strings.Contains(r.out, "Sealed 2 files") {
+		t.Fatalf("seal: %+v", r)
+	}
+	if r := hallmark(t, "check", dir); r.code != ExitOK || !strings.Contains(r.out, "OK: all 2 files are unchanged") {
+		t.Fatalf("check clean: %+v", r)
+	}
+	write(t, dir, "a.txt", "alpha edited!")
+	write(t, dir, "new.txt", "n")
+	r := hallmark(t, "check", dir)
+	if r.code != ExitChanged || !strings.Contains(r.out, "modified  a.txt (5 B -> 13 B)") || !strings.Contains(r.out, "added     new.txt") {
+		t.Fatalf("check changed: %+v", r)
+	}
+}
+
+func TestFlagsMayFollowTheFolder(t *testing.T) {
+	dir := folder(t)
+	mpath := filepath.Join(t.TempDir(), "m.json")
+	if r := hallmark(t, "seal", dir, "-m", mpath, "--exclude", "sub/"); r.code != ExitOK {
+		t.Fatalf("seal: %+v", r)
+	}
+	if r := hallmark(t, "check", "-m", mpath, dir); r.code != ExitOK || !strings.Contains(r.out, "all 1 files") {
+		t.Fatalf("check: %+v", r)
+	}
+}
+
+func TestQuietAndJSON(t *testing.T) {
+	dir := folder(t)
+	hallmark(t, "seal", dir, "-q")
+	if r := hallmark(t, "check", dir, "-q"); r.code != ExitOK || r.out != "" {
+		t.Fatalf("quiet clean: %+v", r)
+	}
+	write(t, dir, "a.txt", "changed")
+	r := hallmark(t, "check", dir, "--json")
+	if r.code != ExitChanged {
+		t.Fatalf("code %d", r.code)
+	}
+	var rep struct {
+		OK       bool `json:"ok"`
+		Modified []struct{ Path string }
+		Added    []string
+	}
+	if err := json.Unmarshal([]byte(r.out), &rep); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, r.out)
+	}
+	if rep.OK || len(rep.Modified) != 1 || rep.Modified[0].Path != "a.txt" || rep.Added == nil {
+		t.Fatalf("report = %+v", rep)
+	}
+}
+
+func TestSignedWorkflow(t *testing.T) {
+	dir := folder(t)
+	keys := filepath.Join(t.TempDir(), "k")
+	if r := hallmark(t, "keygen", "-o", keys); r.code != ExitOK || !strings.Contains(r.out, "Key id:") {
+		t.Fatalf("keygen: %+v", r)
+	}
+	if r := hallmark(t, "keygen", "-o", keys); r.code != ExitError {
+		t.Fatalf("keygen must not overwrite: %+v", r)
+	}
+	if r := hallmark(t, "seal", dir, "--key", keys+".key"); r.code != ExitOK || !strings.Contains(r.out, "signed with key") {
+		t.Fatalf("seal: %+v", r)
+	}
+	if r := hallmark(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitOK || !strings.Contains(r.out, "signature valid") {
+		t.Fatalf("check: %+v", r)
+	}
+	if r := hallmark(t, "check", dir); !strings.Contains(r.out, "not verified") {
+		t.Fatalf("unverified: %+v", r)
+	}
+	if r := hallmark(t, "check", dir, "--require-signature"); r.code != ExitChanged {
+		t.Fatalf("--require-signature without a key must fail: %+v", r)
+	}
+	// An unsigned re-seal by an attacker.
+	write(t, dir, "a.txt", "evil")
+	hallmark(t, "seal", dir, "-q")
+	if r := hallmark(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitChanged || !strings.Contains(r.out, "SIGNATURE INVALID") {
+		t.Fatalf("forged manifest: %+v", r)
+	}
+}
+
+func TestDiffAndExport(t *testing.T) {
+	dir := folder(t)
+	m1 := filepath.Join(t.TempDir(), "1.json")
+	m2 := filepath.Join(t.TempDir(), "2.json")
+	hallmark(t, "seal", dir, "-m", m1)
+	write(t, dir, "sub/b.txt", "bravo2")
+	write(t, dir, "c.txt", "c")
+	hallmark(t, "seal", dir, "-m", m2)
+	r := hallmark(t, "diff", m1, m2)
+	if r.code != ExitChanged || !strings.Contains(r.out, "1 modified, 1 added") {
+		t.Fatalf("diff: %+v", r)
+	}
+	if r := hallmark(t, "diff", m1, m1); r.code != ExitOK {
+		t.Fatalf("diff same: %+v", r)
+	}
+	r = hallmark(t, "export", "-m", m1)
+	lines := strings.Split(strings.TrimSpace(r.out), "\n")
+	if r.code != ExitOK || len(lines) != 2 || !strings.HasSuffix(lines[0], "  a.txt") || len(strings.Fields(lines[0])[0]) != 64 {
+		t.Fatalf("export: %+v", r)
+	}
+}
+
+func TestReportHTML(t *testing.T) {
+	dir := folder(t)
+	hallmark(t, "seal", dir, "-q")
+	write(t, dir, "a.txt", "<script>alert(1)</script>")
+	out := filepath.Join(t.TempDir(), "r.html")
+	r := hallmark(t, "report", dir, "-o", out)
+	if r.code != ExitChanged {
+		t.Fatalf("report: %+v", r)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(b)
+	if !strings.Contains(html, "Changes found") || !strings.Contains(html, "a.txt") {
+		t.Fatalf("html: %s", html)
+	}
+	if r := hallmark(t, "report", dir); r.code != ExitError {
+		t.Fatalf("report without -o: %+v", r)
+	}
+}
+
+func TestUsageErrors(t *testing.T) {
+	for _, args := range [][]string{{}, {"bogus"}, {"seal", "a", "b"}, {"diff", "x"}, {"check", "--watch", "-1s", "."}, {"seal", "--algo", "md5", "."}} {
+		if r := hallmark(t, args...); r.code != ExitError {
+			t.Errorf("%v: exit %d, want %d", args, r.code, ExitError)
+		}
+	}
+	if r := hallmark(t, "version"); r.code != ExitOK || !strings.HasPrefix(r.out, "hallmark ") {
+		t.Fatalf("version: %+v", r)
+	}
+	if r := hallmark(t, "help"); r.code != ExitOK || !strings.Contains(r.out, "hallmark seal") {
+		t.Fatalf("help: %+v", r)
+	}
+}
+
+func TestHostileManifestIsRefused(t *testing.T) {
+	dir := folder(t)
+	hallmark(t, "seal", dir, "-q")
+	p := filepath.Join(dir, ".hallmark.json")
+	data, _ := os.ReadFile(p)
+	evil := strings.Replace(string(data), `"path": "a.txt"`, `"path": "../../etc/passwd"`, 1)
+	_ = os.WriteFile(p, []byte(evil), 0o644)
+	if r := hallmark(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "inside the folder") {
+		t.Fatalf("hostile manifest: %+v", r)
+	}
+}
+
+func TestWatchStopsWithContextAndReportsChange(t *testing.T) {
+	dir := folder(t)
+	hallmark(t, "seal", dir, "-q")
+	var out, errOut bytes.Buffer
+	off := false
+	app := &App{Out: &out, Err: &errOut, Color: &off}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan int, 1)
+	go func() { done <- app.Run(ctx, []string{"check", dir, "--watch", "50ms"}) }()
+	time.Sleep(200 * time.Millisecond)
+	write(t, dir, "a.txt", "changed while watching")
+	time.Sleep(400 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watch did not stop")
+	}
+	if !strings.Contains(out.String(), "OK: all") || !strings.Contains(out.String(), "modified  a.txt") {
+		t.Fatalf("output: %s", out.String())
+	}
+}

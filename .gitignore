@@ -1,0 +1,5 @@
+/hallmark
+/hallmark.exe
+/dist/
+*.key
+.hallmark.json
