@@ -1,4 +1,4 @@
-// hallmark shows whether files were changed.
+// assay shows whether files were changed.
 package main
 
 import (
@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/cli"
+	"github.com/SandSoftwareSolutions/assay/internal/cli"
 )
 
 func main() {

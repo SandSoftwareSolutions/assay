@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/manifest"
-	"github.com/SandSoftwareSolutions/hallmark/internal/sign"
+	"github.com/SandSoftwareSolutions/assay/internal/manifest"
+	"github.com/SandSoftwareSolutions/assay/internal/sign"
 )
 
 func write(t *testing.T, root, rel, content string) {
@@ -100,21 +100,21 @@ func TestSealIsDeterministicAndManifestIsNotHashed(t *testing.T) {
 func TestIgnorePatternsAreStoredAndUsedAtCheckTime(t *testing.T) {
 	dir := folder(t)
 	write(t, dir, "debug.log", "noise")
-	write(t, dir, ".hallmarkignore", "# logs\n*.log\n")
+	write(t, dir, ".assayignore", "# logs\n*.log\n")
 	res := seal(t, dir, func(o *SealOptions) { o.Exclude = []string{"sub/"} })
 	var paths []string
 	for _, f := range res.Manifest.Files {
 		paths = append(paths, f.Path)
 	}
 	sort.Strings(paths)
-	if !reflect.DeepEqual(paths, []string{".hallmarkignore", "a.txt"}) {
+	if !reflect.DeepEqual(paths, []string{".assayignore", "a.txt"}) {
 		t.Fatalf("files = %v", paths)
 	}
 	// Changing the ignore file later must not change what the old manifest means...
-	write(t, dir, ".hallmarkignore", "")
+	write(t, dir, ".assayignore", "")
 	r := chk(t, dir, nil)
 	// ...but the ignore file itself is a sealed file, so the change is visible.
-	if len(r.Diff.Modified) != 1 || r.Diff.Modified[0].Path != ".hallmarkignore" || len(r.Diff.Added) != 0 {
+	if len(r.Diff.Modified) != 1 || r.Diff.Modified[0].Path != ".assayignore" || len(r.Diff.Added) != 0 {
 		t.Fatalf("diff = %+v", r.Diff)
 	}
 	write(t, dir, "debug.log", "more noise") // still ignored
@@ -203,7 +203,7 @@ func TestManifestOutsideFolder(t *testing.T) {
 
 func TestMissingManifestAndFolder(t *testing.T) {
 	dir := folder(t)
-	if _, err := Check(context.Background(), Options{Dir: dir}); err == nil || !strings.Contains(err.Error(), "hallmark seal") {
+	if _, err := Check(context.Background(), Options{Dir: dir}); err == nil || !strings.Contains(err.Error(), "assay seal") {
 		t.Fatalf("got %v", err)
 	}
 	if _, err := Check(context.Background(), Options{Dir: filepath.Join(dir, "nope")}); err == nil {

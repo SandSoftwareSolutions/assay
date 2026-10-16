@@ -12,20 +12,20 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/compare"
-	"github.com/SandSoftwareSolutions/hallmark/internal/ignore"
-	"github.com/SandSoftwareSolutions/hallmark/internal/manifest"
-	"github.com/SandSoftwareSolutions/hallmark/internal/scan"
-	"github.com/SandSoftwareSolutions/hallmark/internal/sign"
+	"github.com/SandSoftwareSolutions/assay/internal/compare"
+	"github.com/SandSoftwareSolutions/assay/internal/ignore"
+	"github.com/SandSoftwareSolutions/assay/internal/manifest"
+	"github.com/SandSoftwareSolutions/assay/internal/scan"
+	"github.com/SandSoftwareSolutions/assay/internal/sign"
 )
 
 // IgnoreFile is the optional file with ignore patterns, read when sealing.
-const IgnoreFile = ".hallmarkignore"
+const IgnoreFile = ".assayignore"
 
 // SealOptions configure Seal.
 type SealOptions struct {
 	Dir          string
-	ManifestPath string // empty: <Dir>/.hallmark.json
+	ManifestPath string // empty: <Dir>/.assay.json
 	Algorithm    string // empty: sha256
 	Exclude      []string
 	Key          ed25519.PrivateKey // optional: sign the manifest
@@ -182,7 +182,7 @@ func Check(ctx context.Context, o Options) (*Result, error) {
 	mpath := manifestPath(o.Dir, o.ManifestPath)
 	m, err := manifest.Read(mpath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("no manifest at %s; create one with: hallmark seal %s", mpath, o.Dir)
+		return nil, fmt.Errorf("no manifest at %s; create one with: assay seal %s", mpath, o.Dir)
 	}
 	if err != nil {
 		return nil, err

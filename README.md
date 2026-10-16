@@ -1,13 +1,13 @@
-# Hallmark
+# Assay
 
 **See whether files were changed.** Seal a folder once, check it whenever you like.
 
 ```console
-$ hallmark seal ./backups
-Sealed 1204 files -> backups/.hallmark.json
+$ assay seal ./backups
+Sealed 1204 files -> backups/.assay.json
 
-$ hallmark check ./backups
-Checked 1204 files against backups/.hallmark.json (sealed 2026-10-16T09:12:44Z, sha256)
+$ assay check ./backups
+Checked 1204 files against backups/.assay.json (sealed 2026-10-16T09:12:44Z, sha256)
   modified  db/users.sqlite (4.2 MiB -> 4.2 MiB)
   added     db/users.sqlite-wal
   removed   logs/2026-10-01.log
@@ -15,16 +15,19 @@ Checked 1204 files against backups/.hallmark.json (sealed 2026-10-16T09:12:44Z, 
 CHANGED: 1 modified, 1 added, 1 removed, 1 renamed, 1200 unchanged
 ```
 
-Hallmark records a cryptographic hash of every file in a manifest and later tells you exactly what
+> *assay* (noun): the testing of a metal to find out whether it is what it claims to be. An assay
+> office tests the metal and then stamps the hallmark on it.
+
+Assay records a cryptographic hash of every file in a manifest and later tells you exactly what
 differs: **modified**, **added**, **removed** or **renamed**. It is a single static binary with no
 dependencies and no daemon.
 
 ## Why
 
 `sha256sum -c` checks the files you listed and says nothing about files that appeared. Tripwire and
-AIDE do the whole job but are built for system administrators. Hallmark sits in between:
+AIDE do the whole job but are built for system administrators. Assay sits in between:
 
-| | `sha256sum -c` | AIDE / Tripwire | **Hallmark** |
+| | `sha256sum -c` | AIDE / Tripwire | **Assay** |
 | --- | :---: | :---: | :---: |
 | Whole folder, finds **new** files | no | yes | **yes** |
 | Recognises **renames** | no | partly | **yes** |
@@ -41,7 +44,7 @@ what a script really touched.
 ## Install
 
 ```console
-go install github.com/SandSoftwareSolutions/hallmark@latest
+go install github.com/SandSoftwareSolutions/assay@latest
 ```
 
 Or download a binary from the releases page and put it on your `PATH`. Verify the download with
@@ -50,26 +53,26 @@ Or download a binary from the releases page and put it on your `PATH`. Verify th
 ## Use
 
 ```console
-hallmark seal [folder]                 # write folder/.hallmark.json
-hallmark check [folder]                # compare; exit status 0 = unchanged, 1 = changes, 2 = error
-hallmark check --json                  # machine readable
-hallmark check --watch 30s             # keep checking, print when the picture changes
-hallmark diff old.json new.json        # compare two seals (two points in time)
-hallmark report -o report.html         # a self-contained HTML report
-hallmark export > SHA256SUMS           # sha256sum -c compatible lines
+assay seal [folder]                 # write folder/.assay.json
+assay check [folder]                # compare; exit status 0 = unchanged, 1 = changes, 2 = error
+assay check --json                  # machine readable
+assay check --watch 30s             # keep checking, print when the picture changes
+assay diff old.json new.json        # compare two seals (two points in time)
+assay report -o report.html         # a self-contained HTML report
+assay export > SHA256SUMS           # sha256sum -c compatible lines
 ```
 
 Useful flags: `-m file` (manifest elsewhere, for example on another disk), `--exclude pattern`
 (repeatable), `--algo sha512`, `-q` (quiet when fine), `--workers N`.
 
-Put patterns in a `.hallmarkignore` file in the folder (same rules as `.gitignore`) or pass
+Put patterns in a `.assayignore` file in the folder (same rules as `.gitignore`) or pass
 `--exclude`. The patterns in effect are stored in the manifest, so later changes to the ignore file
 cannot silently change what a seal means.
 
 In scripts:
 
 ```bash
-hallmark check /srv/site -q || { echo "site changed!" | mail -s alert ops@example.com; }
+assay check /srv/site -q || { echo "site changed!" | mail -s alert ops@example.com; }
 ```
 
 ## Sign it, so the manifest cannot be swapped
@@ -78,16 +81,16 @@ A hash tells you the files differ from the manifest. It cannot tell you the mani
 whoever can change your files can also seal them again. A signature closes that gap.
 
 ```console
-$ hallmark keygen -o release          # writes release.key (secret) and release.pub (share)
-$ hallmark seal ./dist --key release.key
-$ hallmark check ./dist --pubkey release.pub --require-signature
+$ assay keygen -o release          # writes release.key (secret) and release.pub (share)
+$ assay seal ./dist --key release.key
+$ assay check ./dist --pubkey release.pub --require-signature
 signature valid: signed by key 6f1c0a9e22b4d7a1
 OK: all 38 files are unchanged
 ```
 
 The signature covers the root hash (which covers every path, size and hash), the algorithm and the
 ignore patterns. Keep the private key off the machine that holds the files.
-See [docs/security-model.md](docs/security-model.md) for what Hallmark does and does not prove.
+See [docs/security-model.md](docs/security-model.md) for what Assay does and does not prove.
 
 ## How it works
 
@@ -113,7 +116,7 @@ See [docs/security-model.md](docs/security-model.md) for what Hallmark does and 
 
 ## Limits
 
-- Hallmark detects changes. It cannot say who made them or prevent them.
+- Assay detects changes. It cannot say who made them or prevent them.
 - It compares content, size and path. File permissions, owners and timestamps are not recorded.
 - Without a signature, the manifest is only as safe as the place you keep it.
 

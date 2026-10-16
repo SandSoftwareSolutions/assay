@@ -1,11 +1,11 @@
 # Contributing
 
-Hallmark does one thing. Changes that keep it small, predictable and dependency free are the easiest
+Assay does one thing. Changes that keep it small, predictable and dependency free are the easiest
 to accept.
 
 ```console
-git clone https://github.com/SandSoftwareSolutions/hallmark
-cd hallmark
+git clone https://github.com/SandSoftwareSolutions/assay
+cd assay
 make check
 ```
 

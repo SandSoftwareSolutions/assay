@@ -1,4 +1,4 @@
-MODULE  := github.com/SandSoftwareSolutions/hallmark
+MODULE  := github.com/SandSoftwareSolutions/assay
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -9,7 +9,7 @@ LDFLAGS := -s -w -X $(MODULE)/internal/cli.Version=$(VERSION) -X $(MODULE)/inter
 all: check build
 
 build:
-	go build -trimpath -ldflags "$(LDFLAGS)" -o hallmark .
+	go build -trimpath -ldflags "$(LDFLAGS)" -o assay .
 
 test:
 	go test ./...
@@ -46,4 +46,4 @@ install:
 	go install -trimpath -ldflags "$(LDFLAGS)" .
 
 clean:
-	rm -rf hallmark hallmark.exe dist
+	rm -rf assay assay.exe dist

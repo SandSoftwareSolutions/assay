@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/manifest"
+	"github.com/SandSoftwareSolutions/assay/internal/manifest"
 )
 
 func e(path, content string) manifest.Entry {

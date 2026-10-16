@@ -5,13 +5,13 @@
 #   scripts/dist.sh                  # version from git (git describe)
 #   VERSION=1.2.3 scripts/dist.sh
 #
-# Output per platform: hallmark_<version>_<os>_<arch>.tar.gz (.zip for Windows), containing the binary,
+# Output per platform: assay_<version>_<os>_<arch>.tar.gz (.zip for Windows), containing the binary,
 # LICENSE and README.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-MODULE="github.com/SandSoftwareSolutions/hallmark"
+MODULE="github.com/SandSoftwareSolutions/assay"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)}"
 COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}"
 DATE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
@@ -25,10 +25,10 @@ TARGETS=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows
 
 for target in "${TARGETS[@]}"; do
   os="${target%/*}"; arch="${target#*/}"
-  name="hallmark_${VERSION}_${os}_${arch}"
+  name="assay_${VERSION}_${os}_${arch}"
   dir="$WORK/$name"
   mkdir -p "$dir"
-  bin="hallmark"; [ "$os" = windows ] && bin="hallmark.exe"
+  bin="assay"; [ "$os" = windows ] && bin="assay.exe"
   echo "[build] $os/$arch"
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$LDFLAGS" -o "$dir/$bin" .
   cp LICENSE README.md "$dir/"

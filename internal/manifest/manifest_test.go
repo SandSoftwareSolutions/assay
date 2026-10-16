@@ -95,7 +95,7 @@ func TestWriteReadRoundTripAndAtomic(t *testing.T) {
 	if got.Root != m.Root || len(got.Files) != 2 || got.Ignore[0] != "*.log" {
 		t.Fatalf("round trip: %+v", got)
 	}
-	left, _ := filepath.Glob(filepath.Join(dir, ".hallmark-*.tmp"))
+	left, _ := filepath.Glob(filepath.Join(dir, ".assay-*.tmp"))
 	if len(left) != 0 {
 		t.Fatalf("temporary files left: %v", left)
 	}
@@ -128,7 +128,7 @@ func FuzzValidate(f *testing.F) {
 	seed, _ := json.Marshal(good)
 	f.Add(seed)
 	f.Add([]byte(`{}`))
-	f.Add([]byte(`{"format":1,"tool":"hallmark","algorithm":"sha256","files":[{"path":"../x","size":-1,"hash":"zz"}]}`))
+	f.Add([]byte(`{"format":1,"tool":"assay","algorithm":"sha256","files":[{"path":"../x","size":-1,"hash":"zz"}]}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var m Manifest
 		if json.Unmarshal(data, &m) != nil {

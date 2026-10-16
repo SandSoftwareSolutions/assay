@@ -1,6 +1,6 @@
 # Security model
 
-What a Hallmark check proves depends on whether the manifest is signed and where it is kept.
+What a Assay check proves depends on whether the manifest is signed and where it is kept.
 
 | Situation | What `check` tells you |
 | --- | --- |
@@ -17,15 +17,15 @@ Adding an ignore pattern to hide a file therefore invalidates the signature.
 
 - **Who** made a change, and **when**.
 - **Rollback of the whole folder** to an older, validly signed state. Keep a trail of seals (see
-  `hallmark diff`) or put the signed manifest in version control or a timestamping service if replay
+  `assay diff`) or put the signed manifest in version control or a timestamping service if replay
   is a concern.
 - File permissions, owners and timestamps.
 - Files outside the folder, and files hidden by ignore patterns the signer chose.
-- Anything on a machine where the attacker controls the `hallmark` binary or your public key.
+- Anything on a machine where the attacker controls the `assay` binary or your public key.
 
 ## Key handling
 
-- Create the key pair on a machine you trust: `hallmark keygen`. The private key file is written with
+- Create the key pair on a machine you trust: `assay keygen`. The private key file is written with
   mode `0600` where the system supports it.
 - Do not keep the private key on the machine that stores the sealed files.
 - Share the public key through a channel the attacker does not control. `key_id` helps you see which
@@ -34,7 +34,7 @@ Adding an ignore pattern to hide a file therefore invalidates the signature.
 
 ## Input handling
 
-A manifest is untrusted input. Hallmark rejects paths that leave the folder, duplicated entries,
+A manifest is untrusted input. Assay rejects paths that leave the folder, duplicated entries,
 malformed hashes and unknown formats before it touches the file system, and it never follows symbolic
 links while scanning. The parsers are fuzzed.
 

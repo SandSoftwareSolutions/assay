@@ -4,7 +4,7 @@ package compare
 import (
 	"sort"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/manifest"
+	"github.com/SandSoftwareSolutions/assay/internal/manifest"
 )
 
 // Rename is a file whose content is unchanged but whose path differs.

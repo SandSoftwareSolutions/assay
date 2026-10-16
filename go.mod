@@ -1,3 +1,3 @@
-module github.com/SandSoftwareSolutions/hallmark
+module github.com/SandSoftwareSolutions/assay
 
 go 1.22

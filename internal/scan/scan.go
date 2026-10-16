@@ -14,8 +14,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/ignore"
-	"github.com/SandSoftwareSolutions/hallmark/internal/manifest"
+	"github.com/SandSoftwareSolutions/assay/internal/ignore"
+	"github.com/SandSoftwareSolutions/assay/internal/manifest"
 )
 
 // Options control a scan.

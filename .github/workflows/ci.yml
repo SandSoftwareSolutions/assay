@@ -116,7 +116,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
 
   dogfood:
-    name: seal and check this repository with hallmark itself
+    name: seal and check this repository with assay itself
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -125,10 +125,10 @@ jobs:
         with:
           go-version: stable
           cache: true
-      - run: go build -o "$RUNNER_TEMP/hallmark" .
+      - run: go build -o "$RUNNER_TEMP/assay" .
       - name: Seal, tamper, detect
         run: |
-          h="$RUNNER_TEMP/hallmark"
+          h="$RUNNER_TEMP/assay"
           m="$RUNNER_TEMP/manifest.json"
           "$h" seal . -m "$m" --exclude .git
           "$h" check . -m "$m" -q                      # nothing changed: exit 0
@@ -138,7 +138,7 @@ jobs:
           "$h" check . -m "$m" -q                      # restored: exit 0 again
       - name: Signed workflow
         run: |
-          h="$RUNNER_TEMP/hallmark"
+          h="$RUNNER_TEMP/assay"
           cd "$RUNNER_TEMP" && mkdir -p sample && echo hi > sample/a.txt
           "$h" keygen -o k
           "$h" seal sample --key k.key -q

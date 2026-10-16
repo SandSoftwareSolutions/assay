@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/SandSoftwareSolutions/hallmark/internal/ignore"
+	"github.com/SandSoftwareSolutions/assay/internal/ignore"
 )
 
 func write(t *testing.T, root, rel, content string) {
@@ -46,11 +46,11 @@ func TestHashesMatchSha256AndAreSorted(t *testing.T) {
 func TestSkipAndIgnore(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "keep.txt", "k")
-	write(t, root, ".hallmark.json", "{}")
+	write(t, root, ".assay.json", "{}")
 	write(t, root, "node_modules/x.js", "x")
 	write(t, root, "debug.log", "l")
 	res, err := Scan(context.Background(), Options{Root: root, Algorithm: "sha256",
-		Ignore: ignore.New("node_modules/", "*.log"), Skip: []string{".hallmark.json"}})
+		Ignore: ignore.New("node_modules/", "*.log"), Skip: []string{".assay.json"}})
 	if err != nil {
 		t.Fatal(err)
 	}

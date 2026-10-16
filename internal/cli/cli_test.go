@@ -16,7 +16,7 @@ type run struct {
 	out, errOut string
 }
 
-func hallmark(t *testing.T, args ...string) run {
+func assay(t *testing.T, args ...string) run {
 	t.Helper()
 	var out, errOut bytes.Buffer
 	off := false
@@ -46,18 +46,18 @@ func folder(t *testing.T) string {
 
 func TestSealCheckExitCodes(t *testing.T) {
 	dir := folder(t)
-	if r := hallmark(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "hallmark seal") {
+	if r := assay(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "assay seal") {
 		t.Fatalf("check without manifest: %+v", r)
 	}
-	if r := hallmark(t, "seal", dir); r.code != ExitOK || !strings.Contains(r.out, "Sealed 2 files") {
+	if r := assay(t, "seal", dir); r.code != ExitOK || !strings.Contains(r.out, "Sealed 2 files") {
 		t.Fatalf("seal: %+v", r)
 	}
-	if r := hallmark(t, "check", dir); r.code != ExitOK || !strings.Contains(r.out, "OK: all 2 files are unchanged") {
+	if r := assay(t, "check", dir); r.code != ExitOK || !strings.Contains(r.out, "OK: all 2 files are unchanged") {
 		t.Fatalf("check clean: %+v", r)
 	}
 	write(t, dir, "a.txt", "alpha edited!")
 	write(t, dir, "new.txt", "n")
-	r := hallmark(t, "check", dir)
+	r := assay(t, "check", dir)
 	if r.code != ExitChanged || !strings.Contains(r.out, "modified  a.txt (5 B -> 13 B)") || !strings.Contains(r.out, "added     new.txt") {
 		t.Fatalf("check changed: %+v", r)
 	}
@@ -66,22 +66,22 @@ func TestSealCheckExitCodes(t *testing.T) {
 func TestFlagsMayFollowTheFolder(t *testing.T) {
 	dir := folder(t)
 	mpath := filepath.Join(t.TempDir(), "m.json")
-	if r := hallmark(t, "seal", dir, "-m", mpath, "--exclude", "sub/"); r.code != ExitOK {
+	if r := assay(t, "seal", dir, "-m", mpath, "--exclude", "sub/"); r.code != ExitOK {
 		t.Fatalf("seal: %+v", r)
 	}
-	if r := hallmark(t, "check", "-m", mpath, dir); r.code != ExitOK || !strings.Contains(r.out, "all 1 files") {
+	if r := assay(t, "check", "-m", mpath, dir); r.code != ExitOK || !strings.Contains(r.out, "all 1 files") {
 		t.Fatalf("check: %+v", r)
 	}
 }
 
 func TestQuietAndJSON(t *testing.T) {
 	dir := folder(t)
-	hallmark(t, "seal", dir, "-q")
-	if r := hallmark(t, "check", dir, "-q"); r.code != ExitOK || r.out != "" {
+	assay(t, "seal", dir, "-q")
+	if r := assay(t, "check", dir, "-q"); r.code != ExitOK || r.out != "" {
 		t.Fatalf("quiet clean: %+v", r)
 	}
 	write(t, dir, "a.txt", "changed")
-	r := hallmark(t, "check", dir, "--json")
+	r := assay(t, "check", dir, "--json")
 	if r.code != ExitChanged {
 		t.Fatalf("code %d", r.code)
 	}
@@ -101,28 +101,28 @@ func TestQuietAndJSON(t *testing.T) {
 func TestSignedWorkflow(t *testing.T) {
 	dir := folder(t)
 	keys := filepath.Join(t.TempDir(), "k")
-	if r := hallmark(t, "keygen", "-o", keys); r.code != ExitOK || !strings.Contains(r.out, "Key id:") {
+	if r := assay(t, "keygen", "-o", keys); r.code != ExitOK || !strings.Contains(r.out, "Key id:") {
 		t.Fatalf("keygen: %+v", r)
 	}
-	if r := hallmark(t, "keygen", "-o", keys); r.code != ExitError {
+	if r := assay(t, "keygen", "-o", keys); r.code != ExitError {
 		t.Fatalf("keygen must not overwrite: %+v", r)
 	}
-	if r := hallmark(t, "seal", dir, "--key", keys+".key"); r.code != ExitOK || !strings.Contains(r.out, "signed with key") {
+	if r := assay(t, "seal", dir, "--key", keys+".key"); r.code != ExitOK || !strings.Contains(r.out, "signed with key") {
 		t.Fatalf("seal: %+v", r)
 	}
-	if r := hallmark(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitOK || !strings.Contains(r.out, "signature valid") {
+	if r := assay(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitOK || !strings.Contains(r.out, "signature valid") {
 		t.Fatalf("check: %+v", r)
 	}
-	if r := hallmark(t, "check", dir); !strings.Contains(r.out, "not verified") {
+	if r := assay(t, "check", dir); !strings.Contains(r.out, "not verified") {
 		t.Fatalf("unverified: %+v", r)
 	}
-	if r := hallmark(t, "check", dir, "--require-signature"); r.code != ExitChanged {
+	if r := assay(t, "check", dir, "--require-signature"); r.code != ExitChanged {
 		t.Fatalf("--require-signature without a key must fail: %+v", r)
 	}
 	// An unsigned re-seal by an attacker.
 	write(t, dir, "a.txt", "evil")
-	hallmark(t, "seal", dir, "-q")
-	if r := hallmark(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitChanged || !strings.Contains(r.out, "SIGNATURE INVALID") {
+	assay(t, "seal", dir, "-q")
+	if r := assay(t, "check", dir, "--pubkey", keys+".pub"); r.code != ExitChanged || !strings.Contains(r.out, "SIGNATURE INVALID") {
 		t.Fatalf("forged manifest: %+v", r)
 	}
 }
@@ -131,18 +131,18 @@ func TestDiffAndExport(t *testing.T) {
 	dir := folder(t)
 	m1 := filepath.Join(t.TempDir(), "1.json")
 	m2 := filepath.Join(t.TempDir(), "2.json")
-	hallmark(t, "seal", dir, "-m", m1)
+	assay(t, "seal", dir, "-m", m1)
 	write(t, dir, "sub/b.txt", "bravo2")
 	write(t, dir, "c.txt", "c")
-	hallmark(t, "seal", dir, "-m", m2)
-	r := hallmark(t, "diff", m1, m2)
+	assay(t, "seal", dir, "-m", m2)
+	r := assay(t, "diff", m1, m2)
 	if r.code != ExitChanged || !strings.Contains(r.out, "1 modified, 1 added") {
 		t.Fatalf("diff: %+v", r)
 	}
-	if r := hallmark(t, "diff", m1, m1); r.code != ExitOK {
+	if r := assay(t, "diff", m1, m1); r.code != ExitOK {
 		t.Fatalf("diff same: %+v", r)
 	}
-	r = hallmark(t, "export", "-m", m1)
+	r = assay(t, "export", "-m", m1)
 	lines := strings.Split(strings.TrimSpace(r.out), "\n")
 	if r.code != ExitOK || len(lines) != 2 || !strings.HasSuffix(lines[0], "  a.txt") || len(strings.Fields(lines[0])[0]) != 64 {
 		t.Fatalf("export: %+v", r)
@@ -151,10 +151,10 @@ func TestDiffAndExport(t *testing.T) {
 
 func TestReportHTML(t *testing.T) {
 	dir := folder(t)
-	hallmark(t, "seal", dir, "-q")
+	assay(t, "seal", dir, "-q")
 	write(t, dir, "a.txt", "<script>alert(1)</script>")
 	out := filepath.Join(t.TempDir(), "r.html")
-	r := hallmark(t, "report", dir, "-o", out)
+	r := assay(t, "report", dir, "-o", out)
 	if r.code != ExitChanged {
 		t.Fatalf("report: %+v", r)
 	}
@@ -166,40 +166,40 @@ func TestReportHTML(t *testing.T) {
 	if !strings.Contains(html, "Changes found") || !strings.Contains(html, "a.txt") {
 		t.Fatalf("html: %s", html)
 	}
-	if r := hallmark(t, "report", dir); r.code != ExitError {
+	if r := assay(t, "report", dir); r.code != ExitError {
 		t.Fatalf("report without -o: %+v", r)
 	}
 }
 
 func TestUsageErrors(t *testing.T) {
 	for _, args := range [][]string{{}, {"bogus"}, {"seal", "a", "b"}, {"diff", "x"}, {"check", "--watch", "-1s", "."}, {"seal", "--algo", "md5", "."}} {
-		if r := hallmark(t, args...); r.code != ExitError {
+		if r := assay(t, args...); r.code != ExitError {
 			t.Errorf("%v: exit %d, want %d", args, r.code, ExitError)
 		}
 	}
-	if r := hallmark(t, "version"); r.code != ExitOK || !strings.HasPrefix(r.out, "hallmark ") {
+	if r := assay(t, "version"); r.code != ExitOK || !strings.HasPrefix(r.out, "assay ") {
 		t.Fatalf("version: %+v", r)
 	}
-	if r := hallmark(t, "help"); r.code != ExitOK || !strings.Contains(r.out, "hallmark seal") {
+	if r := assay(t, "help"); r.code != ExitOK || !strings.Contains(r.out, "assay seal") {
 		t.Fatalf("help: %+v", r)
 	}
 }
 
 func TestHostileManifestIsRefused(t *testing.T) {
 	dir := folder(t)
-	hallmark(t, "seal", dir, "-q")
-	p := filepath.Join(dir, ".hallmark.json")
+	assay(t, "seal", dir, "-q")
+	p := filepath.Join(dir, ".assay.json")
 	data, _ := os.ReadFile(p)
 	evil := strings.Replace(string(data), `"path": "a.txt"`, `"path": "../../etc/passwd"`, 1)
 	_ = os.WriteFile(p, []byte(evil), 0o644)
-	if r := hallmark(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "inside the folder") {
+	if r := assay(t, "check", dir); r.code != ExitError || !strings.Contains(r.errOut, "inside the folder") {
 		t.Fatalf("hostile manifest: %+v", r)
 	}
 }
 
 func TestWatchStopsWithContextAndReportsChange(t *testing.T) {
 	dir := folder(t)
-	hallmark(t, "seal", dir, "-q")
+	assay(t, "seal", dir, "-q")
 	var out, errOut bytes.Buffer
 	off := false
 	app := &App{Out: &out, Err: &errOut, Color: &off}

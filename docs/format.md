@@ -1,11 +1,11 @@
 # Manifest format (version 1)
 
-A manifest is a UTF-8 JSON file, by default `.hallmark.json` in the sealed folder.
+A manifest is a UTF-8 JSON file, by default `.assay.json` in the sealed folder.
 
 ```json
 {
   "format": 1,
-  "tool": "hallmark",
+  "tool": "assay",
   "algorithm": "sha256",
   "created": "2026-10-16T09:12:44Z",
   "root": "1a94f81b...",
@@ -20,7 +20,7 @@ A manifest is a UTF-8 JSON file, by default `.hallmark.json` in the sealed folde
 | Field | Meaning |
 | --- | --- |
 | `format` | Always `1` in this version. A reader must refuse formats it does not know. |
-| `tool` | Always `"hallmark"`. |
+| `tool` | Always `"assay"`. |
 | `algorithm` | `sha256` or `sha512`. Decides the length of every hash. |
 | `created` | When the seal was made (RFC 3339, UTC). Informative only. |
 | `root` | Hash over all file entries, see below. |
@@ -52,7 +52,7 @@ any of them, or adding or dropping an entry, changes the root.
 The signed message is these four lines, each ending in a newline:
 
 ```
-hallmark/1
+assay/1
 <algorithm>
 <root>
 <sha256 hex of the ignore patterns joined with "\n">
@@ -64,10 +64,10 @@ manifest.
 
 ## Key files
 
-A text file with one line: `hallmark-ed25519-private-key: <base64 seed>` or
-`hallmark-ed25519-public-key: <base64 key>`.
+A text file with one line: `assay-ed25519-private-key: <base64 seed>` or
+`assay-ed25519-public-key: <base64 key>`.
 
 ## Export
 
-`hallmark export` prints `<hash>  <path>` lines, the format of `sha256sum` and `sha512sum`, so
+`assay export` prints `<hash>  <path>` lines, the format of `sha256sum` and `sha512sum`, so
 `cd folder && sha256sum -c SHA256SUMS` verifies the listed files with standard tools.

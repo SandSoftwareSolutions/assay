@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	privateHeader = "hallmark-ed25519-private-key:"
-	publicHeader  = "hallmark-ed25519-public-key:"
+	privateHeader = "assay-ed25519-private-key:"
+	publicHeader  = "assay-ed25519-public-key:"
 	// Algorithm is the signature algorithm name stored in manifests.
 	Algorithm = "ed25519"
 )
@@ -37,7 +37,7 @@ func KeyID(pub ed25519.PublicKey) string {
 // message is what is signed: a version tag, the hash algorithm, the root hash over all files and a
 // digest of the ignore patterns (so patterns cannot be added later to hide files).
 func message(algorithm, root, ignoreDigest string) []byte {
-	return []byte("hallmark/1\n" + algorithm + "\n" + root + "\n" + ignoreDigest + "\n")
+	return []byte("assay/1\n" + algorithm + "\n" + root + "\n" + ignoreDigest + "\n")
 }
 
 // Sign signs a root hash together with the ignore digest.
@@ -73,7 +73,7 @@ func readKeyFile(path, header string) ([]byte, error) {
 	}
 	line := strings.TrimSpace(string(data))
 	if !strings.HasPrefix(line, header) {
-		return nil, fmt.Errorf("%s is not a hallmark key file of the expected kind", path)
+		return nil, fmt.Errorf("%s is not a assay key file of the expected kind", path)
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(strings.TrimPrefix(line, header)))
 	if err != nil {

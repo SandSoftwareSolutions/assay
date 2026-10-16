@@ -1,5 +1,5 @@
-/hallmark
-/hallmark.exe
+/assay
+/assay.exe
 /dist/
 *.key
-.hallmark.json
+.assay.json

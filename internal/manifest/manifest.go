@@ -21,7 +21,7 @@ import (
 const Format = 1
 
 // DefaultFile is the manifest name inside a sealed folder.
-const DefaultFile = ".hallmark.json"
+const DefaultFile = ".assay.json"
 
 // DefaultAlgorithm is used when none is chosen.
 const DefaultAlgorithm = "sha256"
@@ -75,7 +75,7 @@ type Manifest struct {
 	Created   string `json:"created"`
 	Root      string `json:"root"`
 	// Ignore holds the patterns that were in effect when the folder was sealed. Checking uses these, so
-	// a change of .hallmarkignore later cannot make files appear or disappear.
+	// a change of .assayignore later cannot make files appear or disappear.
 	Ignore    []string   `json:"ignore,omitempty"`
 	Files     []Entry    `json:"files"`
 	Signature *Signature `json:"signature,omitempty"`
@@ -109,7 +109,7 @@ func New(algorithm, created string, files []Entry) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Manifest{Format: Format, Tool: "hallmark", Algorithm: algorithm, Created: created, Root: root, Files: sorted}, nil
+	return &Manifest{Format: Format, Tool: "assay", Algorithm: algorithm, Created: created, Root: root, Files: sorted}, nil
 }
 
 // RootMatches reports whether the stored root equals the root of the listed files.
@@ -121,8 +121,8 @@ func (m *Manifest) RootMatches() bool {
 // Validate checks structure and content of a manifest that came from disk. A manifest is untrusted
 // input: paths must stay inside the folder and hashes must have the right shape.
 func (m *Manifest) Validate() error {
-	if m.Tool != "hallmark" {
-		return errors.New("not a hallmark manifest")
+	if m.Tool != "assay" {
+		return errors.New("not a assay manifest")
 	}
 	if m.Format != Format {
 		return fmt.Errorf("unsupported manifest format %d (this version reads format %d)", m.Format, Format)
@@ -206,7 +206,7 @@ func Write(p string, m *Manifest) error {
 		return err
 	}
 	data = append(data, '\n')
-	tmp, err := os.CreateTemp(filepath.Dir(p), ".hallmark-*.tmp")
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".assay-*.tmp")
 	if err != nil {
 		return err
 	}

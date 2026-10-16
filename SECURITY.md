@@ -2,7 +2,7 @@
 
 Please report vulnerabilities privately: use the "Report a vulnerability" button on the Security tab
 of this repository, or email info@sandsoftwaresolutions.nl. Include the version
-(`hallmark version`), what you did and what you expected. Please give a reasonable time to fix the
+(`assay version`), what you did and what you expected. Please give a reasonable time to fix the
 problem before disclosing it.
 
 Things that count as vulnerabilities: a manifest that makes `check` read, write or hash outside the
