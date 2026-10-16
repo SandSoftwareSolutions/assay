@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versions: [Semantic Ver
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-16
+
 First public version.
 
 ### Added
