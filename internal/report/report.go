@@ -77,6 +77,9 @@ func Text(w io.Writer, r *check.Result, o TextOptions) {
 		}
 	}
 	fmt.Fprintln(w, summary(c, r))
+	if r.Reused > 0 {
+		fmt.Fprintf(w, "fast mode: %d of %d file hashes were reused because size and modification time did not change (these were trusted, not read)\n", r.Reused, len(r.Manifest.Files)+len(r.Diff.Added))
+	}
 }
 
 func describeChange(ch compare.Change) string {

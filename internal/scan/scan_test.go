@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/SandSoftwareSolutions/assay/internal/ignore"
 )
@@ -133,5 +134,74 @@ func TestCancelledContextStops(t *testing.T) {
 func TestUnknownAlgorithm(t *testing.T) {
 	if _, err := Scan(context.Background(), Options{Root: t.TempDir(), Algorithm: "md5", Ignore: ignore.New()}); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestCacheReusesUnchangedFilesAndNotesTheTradeOff(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "alpha")
+	write(t, root, "b.txt", "bravo")
+	old := time.Now().Add(-time.Hour)
+	for _, f := range []string{"a.txt", "b.txt"} {
+		_ = os.Chtimes(filepath.Join(root, f), old, old)
+	}
+	first, err := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New()})
+	if err != nil || first.Reused != 0 {
+		t.Fatalf("first scan: %v reused=%d", err, first.Reused)
+	}
+	cachePath := filepath.Join(t.TempDir(), "cache.json")
+	if err := Save(cachePath, "sha256", first.CacheEntries, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Nothing changed: everything is reused and the result is identical.
+	second, err := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New(), Cache: LoadCache(cachePath, "sha256")})
+	if err != nil || second.Reused != 2 || !reflect.DeepEqual(first.Files, second.Files) {
+		t.Fatalf("second scan: %v reused=%d", err, second.Reused)
+	}
+
+	// A real change (new size and time) is hashed again.
+	write(t, root, "a.txt", "alpha changed")
+	third, _ := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New(), Cache: LoadCache(cachePath, "sha256")})
+	if third.Reused != 1 {
+		t.Fatalf("only the unchanged file may be reused, got %d", third.Reused)
+	}
+	if third.Files[0].Hash == first.Files[0].Hash {
+		t.Fatal("a changed file must get a new hash")
+	}
+
+	// The documented trade-off: same size and same modification time but different content is NOT noticed in
+	// fast mode (a normal scan does see it).
+	write(t, root, "b.txt", "BRAVO")
+	_ = os.Chtimes(filepath.Join(root, "b.txt"), old, old)
+	fast, _ := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New(), Cache: LoadCache(cachePath, "sha256")})
+	full, _ := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New()})
+	if fast.Files[1].Hash != first.Files[1].Hash {
+		t.Fatal("fast mode is expected to trust size and time")
+	}
+	if full.Files[1].Hash == first.Files[1].Hash {
+		t.Fatal("a normal scan must see the changed content")
+	}
+}
+
+func TestCacheDoesNotTrustRecentFilesOrOtherAlgorithmsOrDamage(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "new.txt", "just written") // modified "now": within the racy window
+	first, _ := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New()})
+	cachePath := filepath.Join(t.TempDir(), "cache.json")
+	_ = Save(cachePath, "sha256", first.CacheEntries, time.Now())
+	again, _ := Scan(context.Background(), Options{Root: root, Algorithm: "sha256", Ignore: ignore.New(), Cache: LoadCache(cachePath, "sha256")})
+	if again.Reused != 0 {
+		t.Fatal("a file changed moments before the cache was written must be hashed again")
+	}
+	if c := LoadCache(cachePath, "sha512"); len(c.Entries) != 0 {
+		t.Fatal("a cache of another algorithm must be ignored")
+	}
+	_ = os.WriteFile(cachePath, []byte("{broken"), 0o644)
+	if c := LoadCache(cachePath, "sha256"); len(c.Entries) != 0 {
+		t.Fatal("a damaged cache must be ignored, not fail")
+	}
+	if c := LoadCache(filepath.Join(t.TempDir(), "missing.json"), "sha256"); c == nil || len(c.Entries) != 0 {
+		t.Fatal("a missing cache must be empty")
 	}
 }

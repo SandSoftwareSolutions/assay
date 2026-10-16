@@ -5,6 +5,8 @@ package check
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -32,6 +34,10 @@ type SealOptions struct {
 	Workers      int
 	Now          time.Time
 	Progress     func(done, total int)
+	// Fast reuses hashes of files whose size and modification time did not change since the last run (see
+	// scan.Cache). CacheFile overrides where that memory is kept.
+	Fast      bool
+	CacheFile string
 }
 
 // SealResult is what Seal produced.
@@ -41,6 +47,8 @@ type SealResult struct {
 	Scan         *scan.Result
 	// Previous is the diff against the manifest that was there before, when there was a valid one.
 	Previous *compare.Diff
+	// Reused is the number of file hashes taken from the fast-mode cache.
+	Reused int
 }
 
 func manifestPath(dir, given string) string {
@@ -83,8 +91,14 @@ func Seal(ctx context.Context, o SealOptions) (*SealResult, error) {
 	patterns = append(patterns, o.Exclude...)
 	matcher := ignore.New(patterns...)
 
+	cachePath := ""
+	var cache *scan.Cache
+	if o.Fast {
+		cachePath = fastCachePath(o.Dir, o.Algorithm, o.CacheFile)
+		cache = scan.LoadCache(cachePath, o.Algorithm)
+	}
 	res, err := scan.Scan(ctx, scan.Options{Root: o.Dir, Algorithm: o.Algorithm, Ignore: matcher,
-		Skip: skipPaths(o.Dir, mpath), Workers: o.Workers, Progress: o.Progress})
+		Skip: skipPaths(o.Dir, mpath), Workers: o.Workers, Progress: o.Progress, Cache: cache})
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +119,10 @@ func Seal(ctx context.Context, o SealOptions) (*SealResult, error) {
 			Value: sign.Sign(o.Key, m.Algorithm, m.Root, manifest.IgnoreDigest(m.Ignore)),
 		}
 	}
-	out := &SealResult{Manifest: m, ManifestPath: mpath, Scan: res}
+	out := &SealResult{Manifest: m, ManifestPath: mpath, Scan: res, Reused: res.Reused}
+	if o.Fast {
+		_ = scan.Save(cachePath, o.Algorithm, res.CacheEntries, o.Now) // best effort: a cache only speeds things up
+	}
 	if prev, err := manifest.Read(mpath); err == nil {
 		d := compare.Compare(prev.Files, m.Files)
 		out.Previous = &d
@@ -150,6 +167,8 @@ type Options struct {
 	Workers      int
 	Now          time.Time
 	Progress     func(done, total int)
+	Fast         bool
+	CacheFile    string
 }
 
 // Result is the outcome of a check.
@@ -164,6 +183,8 @@ type Result struct {
 	Signature   SignatureStatus
 	KeyID       string
 	CheckedAt   time.Time
+	// Reused is the number of file hashes taken from the fast-mode cache.
+	Reused int
 }
 
 // OK reports whether the folder matches the manifest and nothing is wrong with the manifest.
@@ -187,15 +208,24 @@ func Check(ctx context.Context, o Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	cachePath := ""
+	var cache *scan.Cache
+	if o.Fast {
+		cachePath = fastCachePath(o.Dir, m.Algorithm, o.CacheFile)
+		cache = scan.LoadCache(cachePath, m.Algorithm)
+	}
 	res, err := scan.Scan(ctx, scan.Options{Root: o.Dir, Algorithm: m.Algorithm, Ignore: ignore.New(m.Ignore...),
-		Skip: skipPaths(o.Dir, mpath), Workers: o.Workers, Progress: o.Progress})
+		Skip: skipPaths(o.Dir, mpath), Workers: o.Workers, Progress: o.Progress, Cache: cache})
 	if err != nil {
 		return nil, err
+	}
+	if o.Fast {
+		_ = scan.Save(cachePath, m.Algorithm, res.CacheEntries, o.Now)
 	}
 	r := &Result{
 		ManifestPath: mpath, Manifest: m, Diff: compare.Compare(m.Files, res.Files),
 		Unreadable: res.Unreadable, Skipped: res.Skipped, RootDamaged: !m.RootMatches(),
-		Signature: SigNone, CheckedAt: o.Now,
+		Signature: SigNone, CheckedAt: o.Now, Reused: res.Reused,
 	}
 	// Unreadable files must not be reported as removed: they are there, we just cannot see them.
 	if len(res.Unreadable) > 0 {
@@ -234,4 +264,22 @@ func dropRemoved(d compare.Diff, unreadable map[string]bool) compare.Diff {
 	}
 	d.Removed = removed
 	return d
+}
+
+// fastCachePath is where the fast-mode memory of a folder lives: the given file, or a file in the user's cache
+// folder named after the folder and the algorithm, so different folders never share one.
+func fastCachePath(dir, algorithm, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		abs = dir
+	}
+	sum := sha256.Sum256([]byte(abs + "\x00" + algorithm))
+	base, err := os.UserCacheDir()
+	if err != nil {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "assay", hex.EncodeToString(sum[:8])+".json")
 }
