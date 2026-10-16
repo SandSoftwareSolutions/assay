@@ -1,0 +1,109 @@
+name: "assay"
+description: "Seal a folder, or check that it still matches its seal, with assay (https://github.com/SandSoftwareSolutions/assay)"
+author: "Sand Software Solutions"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  command:
+    description: "seal or check"
+    default: "check"
+  path:
+    description: "The folder to seal or check"
+    default: "."
+  manifest:
+    description: "Manifest file (default: <path>/.assay.json)"
+    default: ""
+  pubkey:
+    description: "Public key file: verify the signature of the manifest (check only)"
+    default: ""
+  require-signature:
+    description: "Fail when the manifest is not signed and verified (check only): true or false"
+    default: "false"
+  version:
+    description: "assay version to use, such as 0.2.0, or latest"
+    default: "latest"
+  args:
+    description: "Extra flags, separated by spaces (no quoting), for example: --exclude node_modules --fast"
+    default: ""
+
+outputs:
+  version:
+    description: "The assay version that was used"
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      env:
+        ASSAY_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        case "$RUNNER_OS" in
+          Linux) os=linux; ext=tar.gz ;;
+          macOS) os=darwin; ext=tar.gz ;;
+          Windows) os=windows; ext=zip ;;
+          *) echo "unsupported runner: $RUNNER_OS" >&2; exit 1 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64) arch=amd64 ;;
+          ARM64) arch=arm64 ;;
+          *) echo "unsupported architecture: $RUNNER_ARCH" >&2; exit 1 ;;
+        esac
+        repo="SandSoftwareSolutions/assay"
+        version="$ASSAY_VERSION"
+        if [ "$version" = latest ]; then
+          version="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$repo/releases/latest" \
+            | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)"
+        fi
+        version="${version#v}"
+        if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+          echo "not a version number: '$version'" >&2; exit 1
+        fi
+        base="https://github.com/$repo/releases/download/v$version"
+        archive="assay_${version}_${os}_${arch}.${ext}"
+        dir="$RUNNER_TEMP/assay-$version"
+        mkdir -p "$dir"
+        curl -fsSL -o "$dir/$archive" "$base/$archive"
+        curl -fsSL -o "$dir/SHA256SUMS" "$base/SHA256SUMS"
+        expected="$(awk -v f="$archive" '$2 == f {print $1}' "$dir/SHA256SUMS")"
+        [ -n "$expected" ] || { echo "no checksum listed for $archive" >&2; exit 1; }
+        if command -v sha256sum >/dev/null 2>&1; then actual="$(sha256sum "$dir/$archive" | awk '{print $1}')"
+        else actual="$(shasum -a 256 "$dir/$archive" | awk '{print $1}')"; fi
+        if [ "$expected" != "$actual" ]; then echo "checksum mismatch for $archive; refusing to use it" >&2; exit 1; fi
+        if [ "$ext" = zip ]; then unzip -q -o "$dir/$archive" -d "$dir"; else tar -xzf "$dir/$archive" -C "$dir"; fi
+        bin="$dir/assay_${version}_${os}_${arch}"
+        if command -v cygpath >/dev/null 2>&1; then bin="$(cygpath -w "$bin")"; fi
+        echo "$bin" >> "$GITHUB_PATH"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - id: run
+      shell: bash
+      env:
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_MANIFEST: ${{ inputs.manifest }}
+        INPUT_PUBKEY: ${{ inputs.pubkey }}
+        INPUT_REQUIRE_SIGNATURE: ${{ inputs.require-signature }}
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        set -euo pipefail
+        case "$INPUT_COMMAND" in
+          seal|check) ;;
+          *) echo "command must be seal or check, not '$INPUT_COMMAND'" >&2; exit 2 ;;
+        esac
+        args=("$INPUT_COMMAND" "$INPUT_PATH")
+        if [ -n "$INPUT_MANIFEST" ]; then args+=(-m "$INPUT_MANIFEST"); fi
+        if [ "$INPUT_COMMAND" = check ]; then
+          if [ -n "$INPUT_PUBKEY" ]; then args+=(--pubkey "$INPUT_PUBKEY"); fi
+          if [ "$INPUT_REQUIRE_SIGNATURE" = true ]; then args+=(--require-signature); fi
+        fi
+        if [ -n "$INPUT_ARGS" ]; then
+          read -r -a extra <<< "$INPUT_ARGS"
+          args+=("${extra[@]}")
+        fi
+        assay "${args[@]}"

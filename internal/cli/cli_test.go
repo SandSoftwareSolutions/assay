@@ -219,3 +219,91 @@ func TestWatchStopsWithContextAndReportsChange(t *testing.T) {
 		t.Fatalf("output: %s", out.String())
 	}
 }
+
+func TestFastModeReusesHashesAndSaysSo(t *testing.T) {
+	dir := folder(t)
+	old := time.Now().Add(-time.Hour)
+	for _, f := range []string{"a.txt", "sub/b.txt"} {
+		_ = os.Chtimes(filepath.Join(dir, filepath.FromSlash(f)), old, old)
+	}
+	cache := filepath.Join(t.TempDir(), "fast.json")
+	if r := sealWith(t, dir, "--fast", "--cache-file", cache); r.code != ExitOK {
+		t.Fatalf("seal: %+v", r)
+	}
+	r := assay(t, "check", dir, "--fast", "--cache-file", cache)
+	if r.code != ExitOK || !strings.Contains(r.out, "fast mode: 2 of 2 file hashes were reused") {
+		t.Fatalf("check --fast: %+v", r)
+	}
+	// Without --fast nothing is reused and nothing is said about it.
+	if r := assay(t, "check", dir); strings.Contains(r.out, "fast mode") {
+		t.Fatalf("normal check must not use the cache: %s", r.out)
+	}
+	// A real change is still found in fast mode.
+	write(t, dir, "a.txt", "changed content")
+	if r := assay(t, "check", dir, "--fast", "--cache-file", cache); r.code != ExitChanged || !strings.Contains(r.out, "modified  a.txt") {
+		t.Fatalf("change not found: %+v", r)
+	}
+}
+
+func sealWith(t *testing.T, dir string, extra ...string) run {
+	t.Helper()
+	return assay(t, append([]string{"seal", dir}, extra...)...)
+}
+
+func TestCompletionScriptsListRealCommandsAndFlags(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
+		r := assay(t, "completion", shell)
+		if r.code != ExitOK {
+			t.Fatalf("%s: %+v", shell, r)
+		}
+		wants := []string{"seal", "check", "report", "keygen", "--fast", "--pubkey", "--json"}
+		if shell == "fish" { // fish spells long options as "-l name"
+			wants = []string{"seal", "check", "report", "keygen", "-l fast", "-l pubkey", "-l json"}
+		}
+		for _, want := range wants {
+			if !strings.Contains(r.out, want) {
+				t.Errorf("%s completion lacks %q", shell, want)
+			}
+		}
+	}
+	if r := assay(t, "completion", "tcsh"); r.code != ExitError {
+		t.Fatalf("unknown shell: %+v", r)
+	}
+	if r := assay(t, "completion"); r.code != ExitError {
+		t.Fatalf("no shell: %+v", r)
+	}
+}
+
+func TestCompletionKnowsWhichFlagsTakeFiles(t *testing.T) {
+	var app App
+	var check commandInfo
+	for _, c := range app.commandInfos() {
+		if c.Name == "check" {
+			check = c
+		}
+	}
+	flags := map[string]flagInfo{}
+	for _, f := range check.Flags {
+		flags[f.Name] = f
+	}
+	for _, name := range []string{"m", "pubkey", "json", "fast", "watch", "cache-file", "require-signature"} {
+		if _, ok := flags[name]; !ok {
+			t.Errorf("check should have flag %q (found %v)", name, flags)
+		}
+	}
+	if !flags["pubkey"].File || !flags["m"].File || flags["json"].Arg || !flags["watch"].Arg {
+		t.Errorf("wrong flag kinds: %+v", flags)
+	}
+}
+
+func TestManPageMentionsEverything(t *testing.T) {
+	r := assay(t, "man")
+	if r.code != ExitOK || !strings.HasPrefix(r.out, ".TH ASSAY 1") {
+		t.Fatalf("man: %+v", r.code)
+	}
+	for _, want := range []string{".SH NAME", ".SH EXIT STATUS", "seal", "completion", `\-\-fast`, ".SH FILES"} {
+		if !strings.Contains(r.out, want) {
+			t.Errorf("man page lacks %q", want)
+		}
+	}
+}

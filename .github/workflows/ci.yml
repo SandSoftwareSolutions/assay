@@ -144,10 +144,46 @@ jobs:
           "$h" seal sample --key k.key -q
           "$h" check sample --pubkey k.pub --require-signature
 
+  action:
+    name: the GitHub Action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: A folder to protect
+        shell: bash
+        run: mkdir demo && echo hello > demo/a.txt
+      - uses: ./
+        with:
+          command: seal
+          path: demo
+      - uses: ./
+        with:
+          command: check
+          path: demo
+      - name: Tamper with the folder
+        shell: bash
+        run: echo evil >> demo/a.txt
+      - uses: ./
+        id: tampered
+        continue-on-error: true
+        with:
+          command: check
+          path: demo
+      - name: The check must have failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.tampered.outcome }}
+        run: test "$OUTCOME" = failure
+
   # Required status check: one name to protect in the branch rules.
   ci-ok:
     if: always()
-    needs: [test, lint, vulncheck, cross-build, dogfood]
+    needs: [test, lint, vulncheck, cross-build, dogfood, action]
     runs-on: ubuntu-latest
     steps:
       - name: All jobs must have succeeded

@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versions: [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+### Added
+- `--fast` for `seal` and `check`: reuse hashes of files whose size and modification time are unchanged (with `--cache-file`). The report says how many hashes were reused.
+- `assay completion bash|zsh|fish|powershell` and `assay man`; the `.deb` installs both.
+- A GitHub Action (`uses: SandSoftwareSolutions/assay@v0.2.0`) that downloads a release, verifies its checksum and runs `seal` or `check`.
+
 ## [0.1.1] - 2026-10-16
 
 ### Fixed

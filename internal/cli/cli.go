@@ -45,6 +45,8 @@ Usage:
   assay report [folder] -o file.html  write an HTML report of a check
   assay export [folder] [flags]       print the manifest as sha256sum lines
   assay keygen [-o prefix]            create an Ed25519 key pair for signing
+  assay completion <shell>            print a completion script (bash, zsh, fish, powershell)
+  assay man                           print the manual page
   assay version
 
 The folder defaults to the current directory, the manifest to <folder>/.assay.json.
@@ -82,6 +84,10 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		code, err = a.export(rest)
 	case "keygen":
 		code, err = a.keygen(rest)
+	case "completion":
+		code, err = a.completion(rest)
+	case "man":
+		code, err = a.man()
 	case "version", "--version", "-v":
 		fmt.Fprintf(a.Out, "assay %s (commit %s, built %s)\n", Version, Commit, Date)
 	case "help", "-h", "--help":
@@ -185,6 +191,8 @@ func (a *App) seal(ctx context.Context, args []string) (int, error) {
 	keyFile := fs.String("key", "", "private key `file`: sign the manifest")
 	workers := fs.Int("workers", 0, "number of parallel hash workers (default: number of CPUs)")
 	quiet := fs.Bool("q", false, "print nothing but errors")
+	fast := fs.Bool("fast", false, "reuse hashes of files whose size and modification time are unchanged (faster, but trusts them)")
+	cacheFile := fs.String("cache-file", "", "memory file for --fast (default: your cache folder)")
 	fs.Var(&exclude, "exclude", "ignore `pattern` (repeatable; same rules as .gitignore)")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -201,7 +209,7 @@ func (a *App) seal(ctx context.Context, args []string) (int, error) {
 		}
 	}
 	res, err := check.Seal(ctx, check.SealOptions{Dir: dir, ManifestPath: *manifestFile, Algorithm: *algo,
-		Exclude: exclude, Key: key, Workers: *workers, Progress: a.progress(*quiet)})
+		Exclude: exclude, Key: key, Workers: *workers, Progress: a.progress(*quiet), Fast: *fast, CacheFile: *cacheFile})
 	if err != nil {
 		return ExitError, err
 	}
@@ -230,6 +238,8 @@ type checkFlags struct {
 	workers            int
 	quiet, verbose, js bool
 	watch              time.Duration
+	fast               bool
+	cacheFile          string
 }
 
 func (a *App) check(ctx context.Context, args []string) (int, error) {
@@ -241,6 +251,8 @@ func (a *App) check(ctx context.Context, args []string) (int, error) {
 	fs.IntVar(&f.workers, "workers", 0, "number of parallel hash workers (default: number of CPUs)")
 	fs.BoolVar(&f.quiet, "q", false, "print nothing when everything is fine")
 	fs.BoolVar(&f.verbose, "v", false, "also list skipped entries")
+	fs.BoolVar(&f.fast, "fast", false, "reuse hashes of files whose size and modification time are unchanged (faster, but trusts them)")
+	fs.StringVar(&f.cacheFile, "cache-file", "", "memory file for --fast (default: your cache folder)")
 	fs.BoolVar(&f.js, "json", false, "print the result as JSON")
 	fs.DurationVar(&f.watch, "watch", 0, "check again every `interval` (for example 10s) and report changes")
 	pos, err := parse(fs, args)
@@ -261,7 +273,7 @@ func (a *App) check(ctx context.Context, args []string) (int, error) {
 }
 
 func (a *App) options(dir string, f checkFlags, progress bool) (check.Options, error) {
-	o := check.Options{Dir: dir, ManifestPath: f.manifest, Workers: f.workers}
+	o := check.Options{Dir: dir, ManifestPath: f.manifest, Workers: f.workers, Fast: f.fast, CacheFile: f.cacheFile}
 	if f.pubkey != "" {
 		pub, err := sign.ReadPublic(f.pubkey)
 		if err != nil {

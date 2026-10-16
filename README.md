@@ -111,6 +111,39 @@ In scripts:
 assay check /srv/site -q || { echo "site changed!" | mail -s alert ops@example.com; }
 ```
 
+### Big folders: `--fast`
+
+`assay check --fast` reuses the hash of every file whose size and modification time have not changed
+since the previous run, so a large, mostly unchanged folder is checked in a fraction of the time.
+The cache is kept in your user cache directory (override with `--cache-file`). The trade-off: a file
+changed *without* touching its modification time is not noticed in fast mode. Use plain `assay check`
+when you need certainty; files modified within the last two seconds are always rehashed. The report
+says how many hashes were reused.
+
+### Shell completion and manual page
+
+```console
+$ assay completion bash > /etc/bash_completion.d/assay     # also zsh, fish, powershell
+$ assay man | gzip > /usr/local/share/man/man1/assay.1.gz
+```
+
+The `.deb` package installs both for you.
+
+### In GitHub Actions
+
+```yaml
+- uses: SandSoftwareSolutions/assay@v0.2.0
+  with:
+    command: check
+    path: dist
+    pubkey: release.pub
+    require-signature: "true"
+```
+
+The action downloads the release archive, verifies it against `SHA256SUMS` and runs `assay`.
+Inputs: `command` (`seal` or `check`), `path`, `manifest`, `pubkey`, `require-signature`, `version`
+(default `latest`; pin one for reproducible builds) and `args` (extra flags, space separated).
+
 ## Sign it, so the manifest cannot be swapped
 
 A hash tells you the files differ from the manifest. It cannot tell you the manifest is genuine:

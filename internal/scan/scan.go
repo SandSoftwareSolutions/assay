@@ -28,6 +28,8 @@ type Options struct {
 	Workers int
 	// Progress is called with the number of files hashed so far (from several goroutines).
 	Progress func(done, total int)
+	// Cache, when set, lets files with an unchanged size and modification time reuse their earlier hash.
+	Cache *Cache
 }
 
 // Problem is a path that could not be read.
@@ -42,6 +44,10 @@ type Result struct {
 	Unreadable []Problem
 	// Skipped lists entries that are neither regular files nor directories (symlinks, sockets, ...).
 	Skipped []string
+	// Reused is the number of hashes taken from the cache instead of reading the file.
+	Reused int
+	// CacheEntries describes every hashed file, to be saved for the next scan.
+	CacheEntries map[string]CacheEntry
 }
 
 // Scan hashes every regular file below opts.Root that is not ignored. Symbolic links are not
@@ -106,8 +112,10 @@ func Scan(ctx context.Context, opts Options) (*Result, error) {
 		workers = len(rels)
 	}
 	type outcome struct {
-		entry manifest.Entry
-		err   error
+		entry  manifest.Entry
+		err    error
+		cached bool
+		cache  CacheEntry
 	}
 	results := make([]outcome, len(rels))
 	jobs := make(chan int)
@@ -118,8 +126,8 @@ func Scan(ctx context.Context, opts Options) (*Result, error) {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				entry, err := hashFile(opts.Root, rels[i], opts.Algorithm)
-				results[i] = outcome{entry: entry, err: err}
+				entry, ce, cached, err := hashFile(opts.Root, rels[i], opts.Algorithm, opts.Cache)
+				results[i] = outcome{entry: entry, err: err, cached: cached, cache: ce}
 				if opts.Progress != nil {
 					opts.Progress(int(atomic.AddInt64(&done, 1)), len(rels))
 				}
@@ -145,25 +153,46 @@ send:
 			continue
 		}
 		res.Files = append(res.Files, r.entry)
+		if r.cached {
+			res.Reused++
+		}
+		if res.CacheEntries == nil {
+			res.CacheEntries = map[string]CacheEntry{}
+		}
+		res.CacheEntries[rels[i]] = r.cache
 	}
 	sort.Slice(res.Unreadable, func(i, j int) bool { return res.Unreadable[i].Path < res.Unreadable[j].Path })
 	sort.Strings(res.Skipped)
 	return res, nil
 }
 
-func hashFile(root, rel, algorithm string) (manifest.Entry, error) {
+func hashFile(root, rel, algorithm string, cache *Cache) (manifest.Entry, CacheEntry, bool, error) {
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	st, err := os.Stat(path)
+	if err != nil {
+		return manifest.Entry{}, CacheEntry{}, false, err
+	}
+	size, modNs := st.Size(), st.ModTime().UnixNano()
+	if hash, ok := cache.lookup(rel, size, modNs); ok {
+		return manifest.Entry{Path: rel, Size: size, Hash: hash}, CacheEntry{Size: size, ModNs: modNs, Hash: hash}, true, nil
+	}
 	h, err := manifest.NewHash(algorithm)
 	if err != nil {
-		return manifest.Entry{}, err
+		return manifest.Entry{}, CacheEntry{}, false, err
 	}
-	f, err := os.Open(filepath.Join(root, filepath.FromSlash(rel)))
+	f, err := os.Open(path)
 	if err != nil {
-		return manifest.Entry{}, err
+		return manifest.Entry{}, CacheEntry{}, false, err
 	}
 	defer f.Close()
 	n, err := io.Copy(h, f)
 	if err != nil {
-		return manifest.Entry{}, fmt.Errorf("read: %w", err)
+		return manifest.Entry{}, CacheEntry{}, false, fmt.Errorf("read: %w", err)
 	}
-	return manifest.Entry{Path: rel, Size: n, Hash: hex.EncodeToString(h.Sum(nil))}, nil
+	hash := hex.EncodeToString(h.Sum(nil))
+	// If the file changed while it was read, do not remember it: the cached values would not match the content.
+	if after, err := os.Stat(path); err != nil || after.Size() != size || after.ModTime().UnixNano() != modNs {
+		return manifest.Entry{Path: rel, Size: n, Hash: hash}, CacheEntry{Size: -1}, false, nil
+	}
+	return manifest.Entry{Path: rel, Size: n, Hash: hash}, CacheEntry{Size: size, ModNs: modNs, Hash: hash}, false, nil
 }
