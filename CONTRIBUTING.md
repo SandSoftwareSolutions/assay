@@ -14,7 +14,7 @@ way: use the standard library.
 
 Before a pull request:
 
-- `make check` passes; `make race` for concurrent code.
+- `make check` passes; `make race` for concurrent code; `make lint` and `make vuln` run staticcheck and govulncheck as CI does.
 - New behaviour has a test. Anything that parses untrusted input (manifests, key files, ignore
   patterns) needs a malformed-input test, ideally a fuzz target.
 - User visible changes get a line in `CHANGELOG.md`.

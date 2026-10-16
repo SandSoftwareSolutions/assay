@@ -4,32 +4,154 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  GOFLAGS: -mod=readonly
+
 jobs:
   test:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.os }}, go ${{ matrix.go }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ["1.22", "stable"] # the oldest Go named in go.mod and the newest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-      - name: Format
-        if: runner.os != 'Windows'
-        run: test -z "$(gofmt -l .)"
-      - run: go vet ./...
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Build
+        run: go build ./...
       - name: Test
-        run: go test ./...
-      - name: Race detector
-        if: runner.os == 'Linux'
-        run: go test -race ./...
-      - name: Fuzz (short)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Windows'
+        run: go test -count=1 ./...
+      - name: Test with race detector and coverage
+        if: runner.os != 'Windows'
+        run: go test -count=1 -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Fuzz the parsers briefly
+        if: runner.os == 'Linux' && matrix.go == 'stable'
         run: make fuzz
+      - name: Coverage summary
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}')
+          echo "### Test coverage: $total" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && matrix.go == 'stable'
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 14
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "These files need gofmt:"; echo "$unformatted"; exit 1; fi
+      - name: go vet
+        run: go vet ./...
+      - name: go mod tidy is a no-op
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  cross-build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - run: go build -trimpath -o /dev/null .
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+
+  dogfood:
+    name: seal and check this repository with hallmark itself
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - run: go build -o "$RUNNER_TEMP/hallmark" .
+      - name: Seal, tamper, detect
+        run: |
+          h="$RUNNER_TEMP/hallmark"
+          m="$RUNNER_TEMP/manifest.json"
+          "$h" seal . -m "$m" --exclude .git
+          "$h" check . -m "$m" -q                      # nothing changed: exit 0
+          echo "tampered" >> README.md
+          if "$h" check . -m "$m" -q; then echo "tampering was not detected"; exit 1; fi
+          git checkout -- README.md
+          "$h" check . -m "$m" -q                      # restored: exit 0 again
+      - name: Signed workflow
+        run: |
+          h="$RUNNER_TEMP/hallmark"
+          cd "$RUNNER_TEMP" && mkdir -p sample && echo hi > sample/a.txt
+          "$h" keygen -o k
+          "$h" seal sample --key k.key -q
+          "$h" check sample --pubkey k.pub --require-signature
+
+  # Required status check: one name to protect in the branch rules.
+  ci-ok:
+    if: always()
+    needs: [test, lint, vulncheck, cross-build, dogfood]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs must have succeeded
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "A required job did not succeed"; exit 1
+          fi

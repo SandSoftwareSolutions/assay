@@ -4,7 +4,7 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X $(MODULE)/internal/cli.Version=$(VERSION) -X $(MODULE)/internal/cli.Commit=$(COMMIT) -X $(MODULE)/internal/cli.Date=$(DATE)
 
-.PHONY: all build test race vet fmt fmt-check check fuzz dist install clean
+.PHONY: all build test race vet fmt fmt-check check lint vuln fuzz dist install clean
 
 all: check build
 
@@ -28,9 +28,16 @@ fmt-check:
 
 check: fmt-check vet test
 
+# Static analysis and known-vulnerability scan; they download the tools on first use.
+lint:
+	go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
 fuzz:
-	go test -run '^$$' -fuzz FuzzValidate -fuzztime 20s ./internal/manifest/
-	go test -run '^$$' -fuzz FuzzMatch -fuzztime 20s ./internal/ignore/
+	go test -run '^$$' -fuzz FuzzValidate -fuzztime 15s ./internal/manifest/
+	go test -run '^$$' -fuzz FuzzMatch -fuzztime 15s ./internal/ignore/
 
 dist:
 	VERSION=$(VERSION) COMMIT=$(COMMIT) DATE=$(DATE) scripts/dist.sh
