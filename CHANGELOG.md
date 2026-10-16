@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versions: [Semantic Ver
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-16
+
+### Fixed
+- Release builds reported the version `dev` (the version was not injected into the binary). The release workflow now checks that the binary prints the release version.
+
 ## [0.1.0] - 2026-10-16
 
 First public version.

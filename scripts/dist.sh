@@ -15,7 +15,7 @@ MODULE="github.com/SandSoftwareSolutions/assay"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)}"
 COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}"
 DATE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-LDFLAGS="-s -w -X $MODULE/internal/cli.version=$VERSION -X $MODULE/internal/cli.commit=$COMMIT -X $MODULE/internal/cli.date=$DATE"
+LDFLAGS="-s -w -X $MODULE/internal/cli.Version=$VERSION -X $MODULE/internal/cli.Commit=$COMMIT -X $MODULE/internal/cli.Date=$DATE"
 OUT="$ROOT/dist"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

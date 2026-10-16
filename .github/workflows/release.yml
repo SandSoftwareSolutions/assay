@@ -48,6 +48,14 @@ jobs:
       - name: Build archives
         run: VERSION="${GITHUB_REF_NAME#v}" scripts/dist.sh
 
+      - name: The binary reports the release version
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          tar -xzf "dist/assay_${ver}_linux_amd64.tar.gz" -C "$RUNNER_TEMP"
+          out="$("$RUNNER_TEMP/assay_${ver}_linux_amd64/assay" version)"
+          echo "$out"
+          case "$out" in *"$ver"*) ;; *) echo "the version was not injected into the binary"; exit 1 ;; esac
+
       - name: Package manager manifests
         run: scripts/packaging.sh "${GITHUB_REF_NAME#v}"
 
