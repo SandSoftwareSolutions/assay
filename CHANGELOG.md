@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versions: [Semantic Ver
 First public version.
 
 ### Added
+- Packaging: a checksum-verifying install script, `.deb` packages, Homebrew and Scoop manifests and
+  build provenance attestations for every release.
 - CI/CD: test matrix (Linux, macOS, Windows; oldest and newest Go) with the race detector and coverage,
   short fuzzing, gofmt, vet, `go mod tidy` check, staticcheck, govulncheck, cross-compile check, a
   dogfood job (assay seals and checks its own repository), CodeQL, Dependabot, and a tag-driven

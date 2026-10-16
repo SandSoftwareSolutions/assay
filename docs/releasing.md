@@ -7,8 +7,9 @@ Releases are cut from `main` by pushing a tag. Nothing is published until a pers
    commit.
 3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. The `Release` workflow checks the tag is a version on `main`, runs the tests, builds archives for
-   Linux, macOS and Windows (amd64 and arm64), writes `SHA256SUMS`,
-   attests the build provenance and creates a **draft** release with the changelog section as notes.
+   Linux, macOS and Windows (amd64 and arm64) and Linux `.deb` packages, writes `SHA256SUMS`, renders the
+   Homebrew formula and Scoop manifest (`dist/packaging/`), attests the build provenance and creates a
+   **draft** release with the changelog section as notes.
 5. Review the draft, then publish it. Tags with a hyphen (`v1.2.3-rc.1`) become pre-releases.
 
 `go install github.com/SandSoftwareSolutions/assay@vX.Y.Z` works as soon as the tag exists.
@@ -24,3 +25,10 @@ gh attestation verify assay_X.Y.Z_linux_amd64.tar.gz --repo SandSoftwareSolution
 
 Require pull requests into `main` and the status check `ci-ok`. Enable *Dependabot alerts* and
 *Code scanning*; the CodeQL workflow reports into the Security tab.
+
+## Package managers
+
+The release carries a Homebrew formula (`assay.rb`) and a Scoop manifest (`assay.json`) with the
+right URLs and checksums. To offer them, copy them into a tap repository
+(`homebrew-tap`, then `brew install SandSoftwareSolutions/tap/assay`) and a Scoop bucket. Neither
+repository exists yet.

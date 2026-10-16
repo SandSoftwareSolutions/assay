@@ -47,8 +47,16 @@ what a script really touched.
 go install github.com/SandSoftwareSolutions/assay@latest
 ```
 
-Or download a binary from the releases page and put it on your `PATH`. Verify the download with
-`SHA256SUMS`. Build from source with `make build` (Go 1.22 or newer).
+Or one of these:
+
+- **Install script** (Linux, macOS; checks the SHA-256 checksum, never uses sudo):
+  `curl -fsSL https://raw.githubusercontent.com/SandSoftwareSolutions/assay/main/install.sh | sh`
+- **Release archive** for Linux, macOS and Windows (amd64 and arm64) from the releases page. Check it
+  with `SHA256SUMS`, and with `gh attestation verify` for the build provenance.
+- **Debian/Ubuntu:** the `.deb` from the releases page.
+- **From source:** `make build` (Go 1.22 or newer).
+
+Check it works with `assay version`.
 
 ## Use
 

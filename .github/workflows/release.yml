@@ -48,6 +48,9 @@ jobs:
       - name: Build archives
         run: VERSION="${GITHUB_REF_NAME#v}" scripts/dist.sh
 
+      - name: Package manager manifests
+        run: scripts/packaging.sh "${GITHUB_REF_NAME#v}"
+
       - name: Release notes
         run: scripts/release-notes.sh "${GITHUB_REF_NAME}" > release-notes.md || echo "See the changelog." > release-notes.md
 
@@ -57,6 +60,7 @@ jobs:
           subject-path: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.deb
             dist/SHA256SUMS
 
       - name: Create draft release
@@ -66,4 +70,4 @@ jobs:
           flags=(--draft --verify-tag --title "${GITHUB_REF_NAME}" --notes-file release-notes.md)
           if [[ "${GITHUB_REF_NAME}" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "${GITHUB_REF_NAME}" "${flags[@]}" \
-            dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+            dist/*.tar.gz dist/*.zip dist/*.deb dist/SHA256SUMS dist/packaging/*

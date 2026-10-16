@@ -6,7 +6,7 @@
 #   VERSION=1.2.3 scripts/dist.sh
 #
 # Output per platform: assay_<version>_<os>_<arch>.tar.gz (.zip for Windows), containing the binary,
-# LICENSE and README.md.
+# LICENSE and README.md. With dpkg-deb available, .deb packages for linux/amd64 and linux/arm64 as well.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +15,7 @@ MODULE="github.com/SandSoftwareSolutions/assay"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)}"
 COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}"
 DATE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-LDFLAGS="-s -w -X $MODULE/internal/cli.Version=$VERSION -X $MODULE/internal/cli.Commit=$COMMIT -X $MODULE/internal/cli.Date=$DATE"
+LDFLAGS="-s -w -X $MODULE/internal/cli.version=$VERSION -X $MODULE/internal/cli.commit=$COMMIT -X $MODULE/internal/cli.date=$DATE"
 OUT="$ROOT/dist"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -33,11 +33,39 @@ for target in "${TARGETS[@]}"; do
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "$LDFLAGS" -o "$dir/$bin" .
   cp LICENSE README.md "$dir/"
   if [ "$os" = windows ]; then
-    (cd "$WORK" && zip -qr "$OUT/$name.zip" "$name")
+    if command -v zip >/dev/null 2>&1; then
+      (cd "$WORK" && zip -qr "$OUT/$name.zip" "$name")
+    else
+      python3 -c 'import shutil, sys; shutil.make_archive(sys.argv[1], "zip", sys.argv[2], sys.argv[3])' "$OUT/$name" "$WORK" "$name"
+    fi
   else
     tar -C "$WORK" -czf "$OUT/$name.tar.gz" "$name"
   fi
 done
 
-(cd "$OUT" && : > SHA256SUMS && for f in *.tar.gz *.zip; do [ -e "$f" ] && sha256sum "$f" >> SHA256SUMS; done; true)
+if command -v dpkg-deb >/dev/null 2>&1; then
+  for arch in amd64 arm64; do
+    pkg="$WORK/deb-$arch"
+    mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin"
+    cp "$WORK/assay_${VERSION}_linux_${arch}/assay" "$pkg/usr/bin/assay"
+    chmod 755 "$pkg/usr/bin/assay"
+    cat > "$pkg/DEBIAN/control" <<CONTROL
+Package: assay
+Version: ${VERSION#v}
+Section: devel
+Priority: optional
+Architecture: $arch
+Maintainer: Sand Software Solutions <info@sandsoftwaresolutions.nl>
+Description: See whether files were changed
+ Assay records a hash of every file in a folder and later shows which files
+ were modified, added, removed or renamed. Manifests can be signed.
+CONTROL
+    dpkg-deb --root-owner-group --build "$pkg" "$OUT/assay_${VERSION}_${arch}.deb" >/dev/null
+    echo "[deb] assay_${VERSION}_${arch}.deb"
+  done
+else
+  echo "[skip] dpkg-deb not found, no .deb packages"
+fi
+
+(cd "$OUT" && : > SHA256SUMS && for f in *.tar.gz *.zip *.deb; do [ -e "$f" ] && sha256sum "$f" >> SHA256SUMS; done; true)
 echo "Done. Artifacts and SHA256SUMS are in $OUT"
