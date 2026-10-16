@@ -1,6 +1,9 @@
 package ignore
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestMatch(t *testing.T) {
 	tests := []struct {
@@ -31,7 +34,6 @@ func TestMatch(t *testing.T) {
 		{"negated character class", []string{"[!ab].txt"}, "a.txt", false, false},
 		{"dotfiles", []string{".*"}, ".env", false, true},
 		{"comment and blank lines are skipped", []string{"# note", "", "x.tmp"}, "x.tmp", false, true},
-		{"windows separators", []string{"docs/*.md"}, `docs\a.md`, false, true},
 		{"root is never ignored", []string{"*"}, ".", true, false},
 		{"dot slash prefix", []string{"a.txt"}, "./a.txt", false, true},
 	}
@@ -80,4 +82,12 @@ func FuzzMatch(f *testing.F) {
 	f.Fuzz(func(t *testing.T, pattern, path string, isDir bool) {
 		New(pattern).Match(path, isDir)
 	})
+}
+
+// On Windows a backslash is a path separator; elsewhere it is an ordinary file name character.
+func TestNativeSeparator(t *testing.T) {
+	m := New("docs/*.md")
+	if !m.Match(filepath.Join("docs", "a.md"), false) {
+		t.Fatal("a path built with the native separator must match")
+	}
 }

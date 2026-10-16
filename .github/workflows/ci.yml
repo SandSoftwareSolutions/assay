@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
-          cache: true
+          cache: false
       - name: Build
         run: go build ./...
       - name: Test
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: true
+          cache: false
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: true
+          cache: false
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: true
+          cache: false
       - run: go build -trimpath -o /dev/null .
         env:
           CGO_ENABLED: "0"
@@ -124,7 +124,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache: true
+          cache: false
       - run: go build -o "$RUNNER_TEMP/assay" .
       - name: Seal, tamper, detect
         run: |
