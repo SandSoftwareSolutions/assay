@@ -68,7 +68,7 @@ Version: ${VERSION#v}
 Section: devel
 Priority: optional
 Architecture: $arch
-Maintainer: Sand Software Solutions <info@sandsoftwaresolutions.nl>
+Maintainer: Sand Software Solutions <info@sandsoftwaresolutions.com>
 Description: See whether files were changed
  Assay records a hash of every file in a folder and later shows which files
  were modified, added, removed or renamed. Manifests can be signed.

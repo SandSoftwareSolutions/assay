@@ -1,7 +1,7 @@
 # Security policy
 
 Please report vulnerabilities privately: use the "Report a vulnerability" button on the Security tab
-of this repository, or email info@sandsoftwaresolutions.nl. Include the version
+of this repository, or email info@sandsoftwaresolutions.com. Include the version
 (`assay version`), what you did and what you expected. Please give a reasonable time to fix the
 problem before disclosing it.
 
