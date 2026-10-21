@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/). Versions: [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-20
+
+### Changed
+- The contact address in `SECURITY.md` and in the `.deb` package is now `info@sandsoftwaresolutions.com`.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added
